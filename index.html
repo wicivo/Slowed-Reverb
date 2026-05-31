@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Slowed & Reverb</title>
+    <!-- Google Fonts: Outfit -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- Tabler Icons CSS -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="style.css">
+    <!-- LameJS for MP3 Encoding inside browser -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/lamejs/1.2.1/lame.min.js"></script>
+</head>
+<body>
+    <div class="glow-bg"></div>
+    <div class="app-container">
+        <!-- Sidebar / Navigation -->
+        <header class="app-header">
+            <div class="logo">
+                <i class="ti ti-waveform-plus logo-icon"></i>
+                <h1>Slowed <span>& Reverb</span></h1>
+            </div>
+            <div class="status-badge" id="app-status">
+                <span class="pulse-dot"></span>
+                <span class="status-text">Ready to slow</span>
+            </div>
+        </header>
+
+        <!-- Main Workspace -->
+        <main class="workspace">
+            <!-- Left Side: Controls -->
+            <section class="controls-panel card">
+                <!-- File Upload Box -->
+                <div class="upload-zone" id="upload-zone">
+                    <input type="file" id="audio-file" accept="audio/*" hidden>
+                    <div class="upload-content">
+                        <div class="upload-icon-wrapper">
+                            <i class="ti ti-cloud-upload"></i>
+                        </div>
+                        <h3>Upload your track</h3>
+                        <p>Drag & drop or click to browse</p>
+                        <span class="file-types">MP3, WAV, FLAC, M4A, OGG</span>
+                    </div>
+                </div>
+
+                <!-- Track Info (Visible only when file loaded) -->
+                <div class="track-info hidden" id="track-info">
+                    <div class="track-icon-wrapper">
+                        <i class="ti ti-music"></i>
+                    </div>
+                    <div class="track-details">
+                        <h4 id="track-title" class="marquee">No file loaded</h4>
+                        <span id="track-meta">0.0 MB • 00:00</span>
+                    </div>
+                    <button class="btn-icon text-danger" id="btn-remove" title="Remove track">
+                        <i class="ti ti-trash"></i>
+                    </button>
+                </div>
+
+                <!-- FX Tuning Sliders -->
+                <div class="control-group">
+                    <label class="group-label"><i class="ti ti-sliders"></i> Fine Tuning</label>
+                    
+                    <!-- Speed Control -->
+                    <div class="slider-container">
+                        <div class="slider-header">
+                            <span><i class="ti ti-gauge"></i> Playback Speed</span>
+                            <span class="value-display" id="val-speed">1.00x</span>
+                        </div>
+                        <input type="range" id="slider-speed" min="0.50" max="1.50" step="0.01" value="1.00" class="neon-slider" disabled>
+                        <div class="slider-ticks">
+                            <span>0.5x</span>
+                            <span>1.0x</span>
+                            <span>1.5x</span>
+                        </div>
+                    </div>
+
+                    <!-- Reverb Intensity -->
+                    <div class="slider-container">
+                        <div class="slider-header">
+                            <span><i class="ti ti-mist"></i> Reverb Depth</span>
+                            <span class="value-display" id="val-reverb">0%</span>
+                        </div>
+                        <input type="range" id="slider-reverb" min="0" max="100" step="1" value="0" class="neon-slider" disabled>
+                        <div class="slider-ticks">
+                            <span>0% (Dry)</span>
+                            <span>50%</span>
+                            <span>100% (Wet)</span>
+                        </div>
+                    </div>
+
+                    <!-- Bass Boost -->
+                    <div class="slider-container">
+                        <div class="slider-header">
+                            <span><i class="ti ti-speakerphone"></i> Bass Boost</span>
+                            <span class="value-display" id="val-bass">0 dB</span>
+                        </div>
+                        <input type="range" id="slider-bass" min="0" max="12" step="0.5" value="0" class="neon-slider" disabled>
+                        <div class="slider-ticks">
+                            <span>Flat</span>
+                            <span>Deep Bass</span>
+                            <span>Sub Rumble</span>
+                        </div>
+                    </div>
+
+                    <!-- Lowpass Muffle Filter -->
+                    <div class="slider-container">
+                        <div class="slider-header">
+                            <span><i class="ti ti-headphones"></i> Cozy Filter (Muffle)</span>
+                            <span class="value-display" id="val-muffle">Off</span>
+                        </div>
+                        <input type="range" id="slider-muffle" min="1000" max="20000" step="100" value="20000" class="neon-slider" disabled>
+                        <div class="slider-ticks">
+                            <span>Muffled</span>
+                            <span>Warm</span>
+                            <span>Bright (Off)</span>
+                        </div>
+                    </div>
+
+                    <!-- 8D Audio Spatializer -->
+                    <div class="slider-container">
+                        <div class="slider-header">
+                            <span><i class="ti ti-headset"></i> 8D Spatial Rotation</span>
+                            <span class="value-display" id="val-8d">Off</span>
+                        </div>
+                        <input type="range" id="slider-8d" min="0" max="100" step="1" value="0" class="neon-slider" disabled>
+                        <div class="slider-ticks">
+                            <span>Off</span>
+                            <span>Slow</span>
+                            <span>Fast</span>
+                        </div>
+                    </div>
+
+                </div>
+            </section>
+
+            <!-- Right Side: Visualizer and Export -->
+            <section class="visualizer-panel card">
+                <!-- Visualizer Display -->
+                <div class="canvas-container" style="cursor: pointer;">
+                    <canvas id="visualizer-canvas"></canvas>
+                    <div class="canvas-overlay">
+                        <div class="no-audio-watermark" id="canvas-watermark">
+                            <i class="ti ti-waveform"></i>
+                            <span>Upload a song to view waveform seekbar</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Player Waveform / Progress Bar -->
+                <div class="player-controls">
+                    <div class="progress-bar-container">
+                        <span class="time-label" id="current-time">0:00</span>
+                        <div class="progress-bar" id="progress-bar-track">
+                            <div class="progress-fill" id="progress-bar-fill">
+                                <div class="progress-handle" id="progress-handle"></div>
+                            </div>
+                        </div>
+                        <span class="time-label" id="total-time">0:00</span>
+                    </div>
+
+                    <!-- Playback Controls Buttons -->
+                    <div class="buttons-row">
+                        <div class="volume-container">
+                            <button class="btn-icon" id="btn-mute" title="Mute/Unmute" disabled>
+                                <i class="ti ti-volume"></i>
+                            </button>
+                            <input type="range" id="slider-volume" min="0" max="100" value="80" class="volume-slider" disabled>
+                        </div>
+
+                        <div class="playback-buttons">
+                            <button class="btn-player btn-secondary" id="btn-back" title="Rewind 10s" disabled>
+                                <i class="ti ti-arrow-back-up"></i>
+                            </button>
+                            <button class="btn-player btn-primary btn-play" id="btn-play" title="Play/Pause" disabled>
+                                <i class="ti ti-player-play"></i>
+                            </button>
+                            <button class="btn-player btn-secondary" id="btn-forward" title="Forward 10s" disabled>
+                                <i class="ti ti-arrow-forward-up"></i>
+                            </button>
+                        </div>
+
+                        <div class="loop-container">
+                            <button class="btn-icon" id="btn-loop" title="Toggle Loop" disabled>
+                                <i class="ti ti-repeat"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Trim Studio Section -->
+                <div class="control-group" style="padding-top: 16px; border-top: 1px solid var(--glass-border);">
+                    <label class="group-label" style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+                        <span><i class="ti ti-scissors"></i> Trim Studio</span>
+                        <label class="switch">
+                            <input type="checkbox" id="toggle-trim" disabled>
+                            <span class="slider-switch"></span>
+                        </label>
+                    </label>
+                    
+                    <div id="trim-controls" class="hidden" style="display: flex; flex-direction: column; gap: 8px; margin-top: 8px; animation: slideDown 0.3s ease-out;">
+                        <!-- Start Trim -->
+                        <div class="slider-container" style="border: none; padding: 4px 0;">
+                            <div class="slider-header">
+                                <span>Start Offset</span>
+                                <span class="value-display" id="val-trim-start">0:00</span>
+                            </div>
+                            <input type="range" id="slider-trim-start" min="0" max="100" step="0.5" value="0" class="neon-slider">
+                        </div>
+                        
+                        <!-- End Trim -->
+                        <div class="slider-container" style="border: none; padding: 4px 0;">
+                            <div class="slider-header">
+                                <span>End Cutoff</span>
+                                <span class="value-display" id="val-trim-end">0:00</span>
+                            </div>
+                            <input type="range" id="slider-trim-end" min="0" max="100" step="0.5" value="100" class="neon-slider">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Export / Download Section -->
+                <div class="export-section">
+                    <div class="export-settings">
+                        <div class="format-select">
+                            <span class="settings-label">Format:</span>
+                            <div class="radio-group">
+                                <label class="radio-label">
+                                    <input type="radio" name="export-format" value="mp3" checked>
+                                    <span class="custom-radio"></span> MP3 (320kbps)
+                                </label>
+                                <label class="radio-label">
+                                    <input type="radio" name="export-format" value="wav">
+                                    <span class="custom-radio"></span> WAV (Lossless)
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <button class="btn-export" id="btn-export" disabled>
+                        <i class="ti ti-download"></i> Export & Download
+                    </button>
+                </div>
+            </section>
+        </main>
+
+        <footer class="app-footer-bar">
+            <p>© 2026 Slowed & Reverb. Created for extreme lo-fi vibes.</p>
+        </footer>
+    </div>
+
+    <!-- Render Progress Popup/Overlay -->
+    <div class="render-overlay hidden" id="render-overlay">
+        <div class="render-card">
+            <div class="render-header">
+                <h3>Processing Audio...</h3>
+                <p id="render-status">Configuring offline nodes</p>
+            </div>
+            <div class="render-progress-ring">
+                <svg class="progress-ring-svg" width="120" height="120">
+                    <circle class="progress-ring-circle-bg" stroke="rgba(255,255,255,0.05)" stroke-width="8" fill="transparent" r="50" cx="60" cy="60"/>
+                    <circle class="progress-ring-circle" id="render-progress-circle" stroke="var(--primary)" stroke-width="8" fill="transparent" r="50" cx="60" cy="60" stroke-dasharray="314.16" stroke-dashoffset="314.16"/>
+                </svg>
+                <div class="render-percentage" id="render-percentage">0%</div>
+            </div>
+            <div class="render-details">
+                <span id="render-time-elapsed">Time elapsed: 0s</span>
+            </div>
+            <button class="btn-secondary" id="btn-cancel-render">Cancel</button>
+        </div>
+    </div>
+
+    <!-- WebWorker code injected in exporter.js, Canvas drawn in visualizer.js, app code in app.js -->
+    <script src="visualizer.js"></script>
+    <script src="exporter.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
