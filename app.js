@@ -79,8 +79,8 @@ document.addEventListener('DOMContentLoaded', () => {
     let isPlaying = false;
     let isMuted = false;
     let isLooping = false;
-    let currentVolume = 0.8;
-    let previousVolume = 0.8; // for muting
+    let currentVolume = 1.0;
+    let previousVolume = 1.0; // for muting
     let playbackSpeed = 1.0;
     
     // Timing states
@@ -451,6 +451,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 
                 trimStart = 0;
                 trimEnd = totalDuration;
+
+                // Generate dynamic notches for trim sliders
+                generateNotches(sliderTrimStart);
+                generateNotches(sliderTrimEnd);
                 
                 valTrimStart.innerText = formatTime(0);
                 valTrimEnd.innerText = formatTime(totalDuration / playbackSpeed);
@@ -502,8 +506,21 @@ document.addEventListener('DOMContentLoaded', () => {
 
         sourceNode = audioCtx.createBufferSource();
         sourceNode.buffer = decodedBuffer;
-        sourceNode.loop = isLooping;
         sourceNode.playbackRate.value = playbackSpeed;
+
+        // Native sample-accurate looping bounds support
+        if (isLooping) {
+            sourceNode.loop = true;
+            if (isTrimEnabled) {
+                sourceNode.loopStart = trimStart;
+                sourceNode.loopEnd = trimEnd;
+            } else {
+                sourceNode.loopStart = 0;
+                sourceNode.loopEnd = totalDuration;
+            }
+        } else {
+            sourceNode.loop = false;
+        }
 
         // Route source to bass node
         sourceNode.connect(bassNode);
@@ -544,12 +561,16 @@ document.addEventListener('DOMContentLoaded', () => {
         
         // Native Web Audio support for buffer trimming offset & duration limits
         if (isTrimEnabled) {
-            const activeDur = trimEnd - startOffset;
-            if (activeDur > 0) {
-                sourceNode.start(0, startOffset, activeDur);
+            if (isLooping) {
+                sourceNode.start(0, startOffset);
             } else {
-                startOffset = trimStart;
-                sourceNode.start(0, trimStart, trimEnd - trimStart);
+                const activeDur = trimEnd - startOffset;
+                if (activeDur > 0) {
+                    sourceNode.start(0, startOffset, activeDur);
+                } else {
+                    startOffset = trimStart;
+                    sourceNode.start(0, trimStart, trimEnd - trimStart);
+                }
             }
         } else {
             sourceNode.start(0, startOffset);
@@ -613,7 +634,23 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function getPlayheadTime() {
         if (!isPlaying) return startOffset;
-        return startOffset + (audioCtx.currentTime - startTime) * playbackSpeed;
+        const totalElapsed = (audioCtx.currentTime - startTime) * playbackSpeed;
+        
+        if (isTrimEnabled && isLooping) {
+            const firstCycleDur = trimEnd - startOffset;
+            if (totalElapsed < firstCycleDur) {
+                return startOffset + totalElapsed;
+            } else {
+                const remainingElapsed = totalElapsed - firstCycleDur;
+                const loopDur = trimEnd - trimStart;
+                return trimStart + (remainingElapsed % loopDur);
+            }
+        } else if (!isTrimEnabled && isLooping) {
+            const loopDur = totalDuration;
+            return (startOffset + totalElapsed) % loopDur;
+        }
+        
+        return startOffset + totalElapsed;
     }
 
     function seekToTime(seconds) {
@@ -779,7 +816,18 @@ document.addEventListener('DOMContentLoaded', () => {
         isLooping = !isLooping;
         btnLoop.classList.toggle('active', isLooping);
         if (sourceNode) {
-            sourceNode.loop = isLooping;
+            if (isLooping) {
+                sourceNode.loop = true;
+                if (isTrimEnabled) {
+                    sourceNode.loopStart = trimStart;
+                    sourceNode.loopEnd = trimEnd;
+                } else {
+                    sourceNode.loopStart = 0;
+                    sourceNode.loopEnd = totalDuration;
+                }
+            } else {
+                sourceNode.loop = false;
+            }
         }
     });
 
@@ -812,6 +860,11 @@ document.addEventListener('DOMContentLoaded', () => {
         // Clamp: Start trim must be at least 1.0s behind End trim bounds
         trimStart = Math.min(val, trimEnd - 1.0);
         sliderTrimStart.value = trimStart;
+        updateNotches(sliderTrimStart);
+
+        if (sourceNode && isLooping && isTrimEnabled) {
+            sourceNode.loopStart = trimStart;
+        }
 
         valTrimStart.innerText = formatTime(trimStart / playbackSpeed);
 
@@ -834,6 +887,11 @@ document.addEventListener('DOMContentLoaded', () => {
         // Clamp: End trim must be at least 1.0s ahead of Start trim bounds
         trimEnd = Math.max(val, trimStart + 1.0);
         sliderTrimEnd.value = trimEnd;
+        updateNotches(sliderTrimEnd);
+
+        if (sourceNode && isLooping && isTrimEnabled) {
+            sourceNode.loopEnd = trimEnd;
+        }
 
         valTrimEnd.innerText = formatTime(trimEnd / playbackSpeed);
 
@@ -858,6 +916,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const speed = parseFloat(e.target.value);
         playbackSpeed = speed;
         valSpeed.innerText = `${speed.toFixed(2)}x`;
+        updateNotches(sliderSpeed);
 
         if (isPlaying && sourceNode) {
             const currentAudioTime = audioCtx.currentTime;
@@ -887,6 +946,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const val = parseInt(e.target.value);
         valReverb.innerText = `${val}%`;
         updateReverbNode();
+        updateNotches(sliderReverb);
     });
 
     // Bass Boost Gain
@@ -896,18 +956,24 @@ document.addEventListener('DOMContentLoaded', () => {
         if (bassNode) {
             bassNode.gain.setValueAtTime(db, audioCtx.currentTime);
         }
+        updateNotches(sliderBass);
     });
 
     // Lowpass Cozy Filter
     sliderMuffle.addEventListener('input', (e) => {
-        const freq = parseInt(e.target.value);
-        if (freq >= 19500) {
+        const pct = parseInt(e.target.value);
+        updateNotches(sliderMuffle);
+        
+        // Map 0-100% to 20000-1000 Hz (open to muffled)
+        const freq = Math.round(20000 - (pct / 100) * 19000);
+        
+        if (pct === 0) {
             valMuffle.innerText = 'Off';
             if (lowpassNode) {
                 lowpassNode.frequency.setValueAtTime(20000, audioCtx.currentTime);
             }
         } else {
-            valMuffle.innerText = `${freq} Hz`;
+            valMuffle.innerText = `${pct}% (${freq} Hz)`;
             if (lowpassNode) {
                 lowpassNode.frequency.setValueAtTime(freq, audioCtx.currentTime);
             }
@@ -917,6 +983,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // 8D Audio Spatializer Control
     slider8d.addEventListener('input', (e) => {
         const val = parseInt(e.target.value);
+        updateNotches(slider8d);
         if (val === 0) {
             val8d.innerText = 'Off';
             if (leftPanner && rightPanner && audioCtx) {
@@ -939,11 +1006,14 @@ document.addEventListener('DOMContentLoaded', () => {
         const formatSelect = document.querySelector('input[name="export-format"]:checked');
         const format = formatSelect ? formatSelect.value : 'mp3';
 
+        const pctMuffle = parseInt(sliderMuffle.value);
+        const freqMuffle = Math.round(20000 - (pctMuffle / 100) * 19000);
+
         const config = {
             speed: parseFloat(sliderSpeed.value),
             reverb: parseInt(sliderReverb.value),
             bass: parseFloat(sliderBass.value),
-            muffle: parseInt(sliderMuffle.value),
+            muffle: freqMuffle, // Pass the computed frequency in Hz
             panSpeed: parseInt(slider8d.value),
             filename: filename,
             isTrimEnabled: isTrimEnabled,
@@ -977,6 +1047,7 @@ document.addEventListener('DOMContentLoaded', () => {
         
         slider8d.value = 0;
         val8d.innerText = 'Off';
+        updateNotches(slider8d);
         
         // Disable UI
         disableControls();
@@ -1045,6 +1116,75 @@ document.addEventListener('DOMContentLoaded', () => {
         btnMute.disabled = true;
         btnLoop.disabled = true;
         btnExport.disabled = true;
+    }
+
+    // Generate notches for all static neon-sliders initially
+    const staticSliders = [sliderSpeed, sliderReverb, sliderBass, sliderMuffle, slider8d];
+    staticSliders.forEach(slider => generateNotches(slider));
+
+    // Generate visual tick notches for ranges
+    function generateNotches(slider) {
+        const existing = slider.parentNode.querySelector('.slider-notches');
+        if (existing) {
+            existing.remove();
+        }
+
+        const min = parseFloat(slider.getAttribute('min') || 0);
+        const max = parseFloat(slider.getAttribute('max') || 100);
+        let step = parseFloat(slider.getAttribute('step') || 1);
+        
+        let notchStep = step;
+        const totalSteps = (max - min) / step;
+        
+        // Prevent overcrowding
+        if (totalSteps > 25) {
+            if (slider.id === 'slider-muffle') {
+                notchStep = 1000; // 19 ticks
+            } else if (slider.id === 'slider-trim-start' || slider.id === 'slider-trim-end') {
+                notchStep = (max - min) / 20; // 20 ticks
+            } else {
+                notchStep = step * Math.ceil(totalSteps / 20);
+            }
+        }
+        
+        const notchesContainer = document.createElement('div');
+        notchesContainer.className = 'slider-notches';
+        
+        const numNotches = Math.round((max - min) / notchStep) + 1;
+        for (let i = 0; i < numNotches; i++) {
+            const notchVal = min + i * notchStep;
+            if (notchVal > max) continue;
+            
+            const notch = document.createElement('span');
+            notch.dataset.value = notchVal;
+            
+            // Mark center notch
+            const pct = (notchVal - min) / (max - min);
+            if (Math.abs(pct - 0.5) < 0.015) {
+                notch.classList.add('center-notch');
+            }
+            
+            notchesContainer.appendChild(notch);
+        }
+        
+        slider.parentNode.insertBefore(notchesContainer, slider.nextSibling);
+        updateNotches(slider);
+    }
+
+    function updateNotches(slider) {
+        const val = parseFloat(slider.value);
+        const container = slider.parentNode.querySelector('.slider-notches');
+        if (!container) return;
+        
+        const notches = container.querySelectorAll('span');
+        notches.forEach(notch => {
+            const notchVal = parseFloat(notch.dataset.value);
+            if (notchVal <= val) {
+                notch.classList.add('active');
+            } else {
+                notch.classList.remove('active');
+            }
+        });
     }
 
     // Double digit padding for audio duration representation

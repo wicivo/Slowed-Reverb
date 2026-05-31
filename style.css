@@ -490,6 +490,7 @@ input[type="range"].neon-slider:not(:disabled)::-webkit-slider-thumb:hover {
     font-weight: 500;
     margin-top: 2px;
     width: 100%;
+    position: relative;
 }
 
 .slider-ticks span {
@@ -501,6 +502,9 @@ input[type="range"].neon-slider:not(:disabled)::-webkit-slider-thumb:hover {
 }
 
 .slider-ticks span:nth-child(2) {
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
     text-align: center;
 }
 
@@ -1077,6 +1081,41 @@ input:checked + .slider-switch:before {
 input:disabled + .slider-switch {
     opacity: 0.4;
     cursor: not-allowed;
+}
+
+/* Slider Notches / Divisions Tick Marks */
+.slider-notches {
+    display: flex;
+    justify-content: space-between;
+    padding: 0 7px; /* Align precisely with the range slider thumb path limits */
+    height: 6px;
+    margin-top: 4px;
+    margin-bottom: 2px;
+    pointer-events: none;
+}
+
+.slider-notches span {
+    width: 2px;
+    height: 4px;
+    background: rgba(255, 255, 255, 0.08);
+    border-radius: 1px;
+    transition: background-color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.slider-notches span.active {
+    background: var(--primary);
+    box-shadow: 0 0 3px var(--primary-glow);
+}
+
+.slider-notches span.center-notch {
+    height: 7px;
+    background: rgba(255, 255, 255, 0.18);
+    transform: translateY(-1.5px);
+}
+
+.slider-notches span.center-notch.active {
+    background: var(--secondary);
+    box-shadow: 0 0 5px var(--secondary-glow);
 }
 
 /* ==========================================================================
