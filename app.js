@@ -274,13 +274,32 @@ document.addEventListener('DOMContentLoaded', () => {
         wetGainNode.connect(analyserNode);
 
         // Output connection: Split stereo into L/R, spatialize independently in 3D, and merge
-        analyserNode.connect(channelSplitter);
         channelSplitter.connect(leftPanner, 0); // Left channel to Left Panner
         channelSplitter.connect(rightPanner, 1); // Right channel to Right Panner
         
         leftPanner.connect(masterGainNode);
         rightPanner.connect(masterGainNode);
         masterGainNode.connect(audioCtx.destination);
+
+        // Dynamically configure 8D panner routing (bypasses panners if 8D is off)
+        update8DRouting();
+    }
+
+    function update8DRouting() {
+        if (!audioCtx || !analyserNode || !masterGainNode) return;
+
+        try {
+            analyserNode.disconnect();
+        } catch (e) {}
+
+        const val8dSpeed = parseInt(slider8d.value);
+        if (val8dSpeed > 0) {
+            // Route through 8D spatializer (splitter -> panners)
+            analyserNode.connect(channelSplitter);
+        } else {
+            // Bypass spatializer completely to avoid HRTF frequency filtering/coloring
+            analyserNode.connect(masterGainNode);
+        }
     }
 
     // Programmatic Reverb Buffer Generator (Exponentially decaying filtered white noise)
@@ -995,6 +1014,7 @@ document.addEventListener('DOMContentLoaded', () => {
         } else {
             val8d.innerText = `${val}%`;
         }
+        update8DRouting();
     });
 
     // ----------------------------------------------------------------------

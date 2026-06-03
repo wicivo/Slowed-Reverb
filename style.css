@@ -148,6 +148,18 @@ body {
     animation: pulseGlow 3s ease-in-out infinite;
 }
 
+.logo-image {
+    width: 34px;
+    height: 34px;
+    border-radius: 8px;
+    filter: drop-shadow(0 0 8px var(--primary-glow));
+    transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.logo:hover .logo-image {
+    transform: scale(1.08) rotate(-6deg);
+}
+
 .logo h1 {
     font-size: 24px;
     font-weight: 800;
