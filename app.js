@@ -591,7 +591,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 let errorDetails = [];
                 
                 for (const instance of cobaltInstances) {
-                    const endpoints = [instance, `${instance}/api/json`];
+                    const endpoints = [`${instance}/`, `${instance}/api/json`];
                     
                     for (const endpoint of endpoints) {
                         const host = new URL(endpoint).hostname;
