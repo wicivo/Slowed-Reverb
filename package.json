@@ -1,0 +1,18 @@
+{
+  "name": "slowed-reverb-studio",
+  "version": "1.0.0",
+  "description": "Slowed & Reverb Studio with YouTube audio downloader",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "keywords": [
+    "audio",
+    "slowed",
+    "reverb",
+    "youtube",
+    "downloader"
+  ],
+  "author": "",
+  "license": "ISC"
+}

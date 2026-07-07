@@ -36,6 +36,16 @@
         <main class="workspace">
             <!-- Left Side: Controls -->
             <section class="controls-panel card">
+                <!-- Upload / Download Options Tabs -->
+                <div class="upload-tabs">
+                    <button class="tab-btn active" id="tab-local">
+                        <i class="ti ti-upload"></i> Local File
+                    </button>
+                    <button class="tab-btn" id="tab-url">
+                        <i class="ti ti-link"></i> Link Download
+                    </button>
+                </div>
+
                 <!-- File Upload Box -->
                 <div class="upload-zone" id="upload-zone">
                     <input type="file" id="audio-file" accept="audio/*" hidden>
@@ -46,6 +56,27 @@
                         <h3>Upload your track</h3>
                         <p>Drag & drop or click to browse</p>
                         <span class="file-types">MP3, WAV, FLAC, M4A, OGG</span>
+                    </div>
+                </div>
+
+                <!-- URL Download Box -->
+                <div class="url-zone hidden" id="url-zone">
+                    <div class="url-content">
+                        <div class="url-icon-wrapper">
+                            <i class="ti ti-brand-youtube"></i>
+                        </div>
+                        <h3>Load from YouTube / URL</h3>
+                        <p>Supports YouTube, SoundCloud, and more</p>
+                        <div class="url-input-group">
+                            <input type="url" id="audio-url" placeholder="Paste YouTube link here..." class="neon-input">
+                            <button class="btn-download-action" id="btn-download-url">
+                                <i class="ti ti-download"></i> Load Track
+                            </button>
+                        </div>
+                        <div class="url-status hidden" id="url-status-message"></div>
+                        <div class="url-helper-badge" id="url-mode-info">
+                            <i class="ti ti-info-circle"></i> Detecting mode...
+                        </div>
                     </div>
                 </div>
 
