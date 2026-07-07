@@ -12,15 +12,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const trackTitle = document.getElementById('track-title');
     const trackMeta = document.getElementById('track-meta');
     const btnRemove = document.getElementById('btn-remove');
-
-    // Tabs & URL Downloader Selectors
-    const tabLocal = document.getElementById('tab-local');
-    const tabUrl = document.getElementById('tab-url');
-    const urlZone = document.getElementById('url-zone');
-    const audioUrlInput = document.getElementById('audio-url');
-    const btnDownloadUrl = document.getElementById('btn-download-url');
-    const urlStatusMessage = document.getElementById('url-status-message');
-    const urlModeInfo = document.getElementById('url-mode-info');
     
     // Sliders
     const sliderSpeed = document.getElementById('slider-speed');
@@ -434,253 +425,89 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // Tabs Event Listeners
-    tabLocal.addEventListener('click', () => {
-        tabLocal.classList.add('active');
-        tabUrl.classList.remove('active');
-        uploadZone.classList.remove('hidden');
-        urlZone.classList.add('hidden');
-    });
-
-    tabUrl.addEventListener('click', () => {
-        tabUrl.classList.add('active');
-        tabLocal.classList.remove('active');
-        urlZone.classList.remove('hidden');
-        uploadZone.classList.add('hidden');
-    });
-
-    // Detect Environment Mode (Local Server vs Public API)
-    const isLocalMode = window.location.hostname === 'localhost' || 
-                        window.location.hostname === '127.0.0.1';
-    
-    if (isLocalMode) {
-        urlModeInfo.innerHTML = '<i class="ti ti-device-desktop-analytics"></i> Local Mode (Fast & Unlimited)';
-    } else {
-        urlModeInfo.innerHTML = '<i class="ti ti-cloud"></i> Cloud Mode (Via Public Cobalt API)';
-    }
-
     function handleLoadedFile(file) {
         if (!file.type.startsWith('audio/')) {
             alert('Please select an audio file (MP3, WAV, etc.)');
             return;
         }
 
-        const reader = new FileReader();
-        reader.onload = async (event) => {
-            await loadAudioBuffer(event.target.result, file.name, file.size);
-        };
-        reader.readAsArrayBuffer(file);
-    }
-
-    async function loadAudioBuffer(arrayBuffer, name, sizeInBytes) {
-        filename = name;
-        fileSizeMb = (sizeInBytes / (1024 * 1024)).toFixed(1);
-
+        filename = file.name;
+        
+        // Show status loading
+        appStatusBadge.classList.remove('active');
+        appStatusBadge.querySelector('.status-text').innerText = 'Loading track...';
+        
         // UI Layout changes
         uploadZone.classList.add('hidden');
-        urlZone.classList.add('hidden');
         trackInfo.classList.remove('hidden');
-        trackTitle.innerText = name;
+        trackTitle.innerText = file.name;
+        
+        fileSizeMb = (file.size / (1024 * 1024)).toFixed(1);
         trackMeta.innerText = `${fileSizeMb} MB • Analyzing`;
 
-        appStatusBadge.classList.remove('active');
-        appStatusBadge.querySelector('.status-text').innerText = 'Decoding audio...';
+        // Read file into memory buffer
+        const reader = new FileReader();
+        reader.onload = async (event) => {
+            try {
+                // Initialize the web audio engine safely
+                initAudioEngine();
 
-        try {
-            // Initialize the web audio engine safely
-            initAudioEngine();
-
-            // Decode the data asynchronously
-            decodedBuffer = await audioCtx.decodeAudioData(arrayBuffer);
-            
-            // Track details successfully read
-            totalDuration = decodedBuffer.duration;
-            
-            // Setup Trim Sliders boundaries
-            sliderTrimStart.max = totalDuration;
-            sliderTrimStart.value = 0;
-            sliderTrimEnd.max = totalDuration;
-            sliderTrimEnd.value = totalDuration;
-            
-            trimStart = 0;
-            trimEnd = totalDuration;
-
-            // Generate dynamic notches for trim sliders
-            generateNotches(sliderTrimStart);
-            generateNotches(sliderTrimEnd);
-            
-            valTrimStart.innerText = formatTime(0);
-            valTrimEnd.innerText = formatTime(totalDuration / playbackSpeed);
-
-            // Enable UI elements
-            enableControls();
-            
-            // Extract waveform peak indices for SoundCloud layout (220 bars)
-            appStatusBadge.querySelector('.status-text').innerText = 'Drawing waveform...';
-            const peaks = extractPeaks(decodedBuffer, 220);
-            visualizer.setPeaks(peaks);
-            visualizer.setTrim(isTrimEnabled, 0, 1);
-            
-            // Reset states
-            stopPlayback();
-            startOffset = 0;
-            updateProgressBar(0);
-            updateDurationUI();
-            
-            appStatusBadge.classList.add('active');
-            appStatusBadge.querySelector('.status-text').innerText = 'Track Loaded';
-            canvasWatermark.classList.add('hidden');
-            
-            // Setup reverb buffer dynamically
-            updateReverbNode();
-
-        } catch (err) {
-            console.error('Decoding failed:', err);
-            alert('Failed to decode audio. Please try another file format (like Standard WAV or MP3).');
-            resetToUploadState();
-        }
-    }
-
-    // URL Download Handler
-    btnDownloadUrl.addEventListener('click', async () => {
-        const url = audioUrlInput.value.trim();
-        if (!url) {
-            showUrlStatus('Please paste a valid link.', 'error');
-            return;
-        }
-
-        try {
-            btnDownloadUrl.disabled = true;
-            audioUrlInput.disabled = true;
-            showUrlStatus('Connecting and resolving stream...', 'info');
-
-            let response;
-            let finalFilename = "downloaded_track";
-
-            if (isLocalMode) {
-                // Fetch from local backend API
-                const localApiUrl = `/api/download?url=${encodeURIComponent(url)}`;
-                response = await fetch(localApiUrl);
+                const arrayBuffer = event.target.result;
                 
-                if (!response.ok) {
-                    const errText = await response.text();
-                    throw new Error(errText || 'Local download failed.');
-                }
+                appStatusBadge.querySelector('.status-text').innerText = 'Decoding audio...';
                 
-                // Read title from header
-                const titleHeader = response.headers.get('x-audio-title');
-                if (titleHeader) {
-                    finalFilename = decodeURIComponent(titleHeader);
-                } else {
-                    finalFilename = "Local Download";
-                }
-            } else {
-                // Fetch using Cobalt public API fallback
-                const cobaltInstances = [
-                    'https://cobalt.meowing.de',
-                    'https://api.cobalt.tools',
-                    'https://cobalt.hyper.lol',
-                    'https://cobalt.sh',
-                    'https://co.wuk.sh',
-                    'https://cobalt.moe',
-                    'https://cobalt.perennial.ink'
-                ];
+                // Decode the data asynchronously
+                decodedBuffer = await audioCtx.decodeAudioData(arrayBuffer);
                 
-                let success = false;
-                let cobaltData = null;
-                let errorDetails = [];
+                // Track details successfully read
+                totalDuration = decodedBuffer.duration;
                 
-                for (const instance of cobaltInstances) {
-                    const endpoints = [`${instance}/`, `${instance}/api/json`];
-                    
-                    for (const endpoint of endpoints) {
-                        const host = new URL(endpoint).hostname;
-                        try {
-                            showUrlStatus(`Contacting API (${host})...`, 'info');
-                            const proxyUrl = `https://corsproxy.io/?url=${encodeURIComponent(endpoint)}`;
-                            const res = await fetch(proxyUrl, {
-                                method: 'POST',
-                                headers: {
-                                    'Accept': 'application/json',
-                                    'Content-Type': 'application/json'
-                                },
-                                body: JSON.stringify({
-                                    url: url,
-                                    downloadMode: 'audio',
-                                    audioFormat: 'best',
-                                    audioBitrate: '320'
-                                })
-                            });
-                            
-                            if (res.ok) {
-                                cobaltData = await res.json();
-                                if (cobaltData && cobaltData.url) {
-                                    success = true;
-                                    break;
-                                } else {
-                                    errorDetails.push(`${host}: Missing URL in response`);
-                                }
-                            } else {
-                                errorDetails.push(`${host}: HTTP ${res.status}`);
-                            }
-                        } catch (e) {
-                            console.warn(`Failed endpoint ${endpoint}:`, e);
-                            errorDetails.push(`${host}: ${e.message || 'CORS/Network Error'}`);
-                        }
-                    }
-                    if (success) break;
-                }
+                // Setup Trim Sliders boundaries
+                sliderTrimStart.max = totalDuration;
+                sliderTrimStart.value = 0;
+                sliderTrimEnd.max = totalDuration;
+                sliderTrimEnd.value = totalDuration;
                 
-                if (!success || !cobaltData) {
-                    const uniqueErrors = [...new Set(errorDetails)];
-                    const details = uniqueErrors.slice(0, 4).join(' | ');
-                    throw new Error(`Failed (${details}). Please run locally for guaranteed downloading.`);
-                }
+                trimStart = 0;
+                trimEnd = totalDuration;
 
-                showUrlStatus('Downloading audio data from CDN...', 'info');
-                finalFilename = cobaltData.filename || "Cobalt Download";
+                // Generate dynamic notches for trim sliders
+                generateNotches(sliderTrimStart);
+                generateNotches(sliderTrimEnd);
                 
-                response = await fetch(cobaltData.url);
-                if (!response.ok) {
-                    throw new Error('Failed to retrieve audio stream from downloader CDN.');
-                }
+                valTrimStart.innerText = formatTime(0);
+                valTrimEnd.innerText = formatTime(totalDuration / playbackSpeed);
+
+                // Enable UI elements
+                enableControls();
+                
+                // Extract waveform peak indices for SoundCloud layout (220 bars)
+                appStatusBadge.querySelector('.status-text').innerText = 'Drawing waveform...';
+                const peaks = extractPeaks(decodedBuffer, 220);
+                visualizer.setPeaks(peaks);
+                visualizer.setTrim(isTrimEnabled, 0, 1);
+                
+                // Reset states
+                stopPlayback();
+                startOffset = 0;
+                updateProgressBar(0);
+                updateDurationUI();
+                
+                appStatusBadge.classList.add('active');
+                appStatusBadge.querySelector('.status-text').innerText = 'Track Loaded';
+                canvasWatermark.classList.add('hidden');
+                
+                // Setup reverb buffer dynamically
+                updateReverbNode();
+
+            } catch (err) {
+                console.error('Decoding failed:', err);
+                alert('Failed to decode audio. Please try another file format (like Standard WAV or MP3).');
+                resetToUploadState();
             }
+        };
 
-            showUrlStatus('Reading audio stream...', 'info');
-            const arrayBuffer = await response.arrayBuffer();
-
-            showUrlStatus('Loading audio into workspace...', 'success');
-            await loadAudioBuffer(arrayBuffer, finalFilename, arrayBuffer.byteLength);
-            
-            // Clean input and status
-            audioUrlInput.value = '';
-            showUrlStatus('', 'hidden');
-
-        } catch (err) {
-            console.error('URL Download error:', err);
-            showUrlStatus(err.message, 'error');
-        } finally {
-            btnDownloadUrl.disabled = false;
-            audioUrlInput.disabled = false;
-        }
-    });
-
-    function showUrlStatus(message, type) {
-        urlStatusMessage.className = 'url-status';
-        if (type === 'hidden' || !message) {
-            urlStatusMessage.classList.add('hidden');
-            return;
-        }
-        
-        urlStatusMessage.classList.remove('hidden');
-        urlStatusMessage.classList.add(type);
-        
-        let icon = '<i class="ti ti-info-circle"></i>';
-        if (type === 'error') icon = '<i class="ti ti-alert-triangle"></i>';
-        if (type === 'success') icon = '<i class="ti ti-circle-check"></i>';
-        if (type === 'info') icon = '<i class="ti ti-loader animate-spin"></i>';
-        
-        urlStatusMessage.innerHTML = `${icon} <span>${message}</span>`;
+        reader.readAsArrayBuffer(file);
     }
 
     // ----------------------------------------------------------------------
@@ -1254,13 +1081,7 @@ document.addEventListener('DOMContentLoaded', () => {
         progressBarFill.style.width = "0%";
         
         trackInfo.classList.add('hidden');
-        if (tabLocal.classList.contains('active')) {
-            uploadZone.classList.remove('hidden');
-            urlZone.classList.add('hidden');
-        } else {
-            urlZone.classList.remove('hidden');
-            uploadZone.classList.add('hidden');
-        }
+        uploadZone.classList.remove('hidden');
         canvasWatermark.classList.remove('hidden');
 
         appStatusBadge.classList.remove('active');
