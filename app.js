@@ -597,7 +597,8 @@ document.addEventListener('DOMContentLoaded', () => {
                         const host = new URL(endpoint).hostname;
                         try {
                             showUrlStatus(`Contacting API (${host})...`, 'info');
-                            const res = await fetch(endpoint, {
+                            const proxyUrl = `https://corsproxy.io/?url=${encodeURIComponent(endpoint)}`;
+                            const res = await fetch(proxyUrl, {
                                 method: 'POST',
                                 headers: {
                                     'Accept': 'application/json',
